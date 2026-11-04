@@ -1,16 +1,16 @@
 const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
 async function authorized(request,env){
  const supplied=request.headers.get('authorization')||'';
- if(!env.ADMIN_TOKEN||!supplied.startsWith('Bearer '))return false;
+ if(!env.SUMERPURBAZAR||!supplied.startsWith('Bearer '))return false;
  const candidate=supplied.slice(7);
  if(candidate.length<24||candidate.length>512)return false;
  const hash=async s=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)));
- const a=await hash(candidate),b=await hash(env.ADMIN_TOKEN);let mismatch=0;
+ const a=await hash(candidate),b=await hash(env.SUMERPURBAZAR);let mismatch=0;
  for(let i=0;i<a.length;i++)mismatch|=a[i]^b[i];
  return mismatch===0;
 }
 export async function onRequest({request,env}){
- if(!env.DB||!env.ADMIN_TOKEN)return response({error:'DB or ADMIN_TOKEN not configured'},503);
+ if(!env.DB||!env.SUMERPURBAZAR)return response({error:'DB or ADMIN_TOKEN not configured'},503);
  if(!(await authorized(request,env)))return response({error:'अनुमति नहीं है। पासवर्ड जाँचें।'},401);
  if(request.method==='GET'){
   try{const {results}=await env.DB.prepare("SELECT id,title,price,category,location,description,phone,status,created_at FROM ads ORDER BY id DESC LIMIT 200").all();return response({ads:results||[]})}catch{return response({error:'डेटाबेस उपलब्ध नहीं है'},500)}
