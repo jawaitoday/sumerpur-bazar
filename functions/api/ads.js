@@ -4,7 +4,7 @@ const locations=new Set(['सुमेरपुर','शिवगंज','आस
 const reply=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 export async function onRequestGet({env}) {
  if(!env.DB)return reply({error:'DB binding missing'},503);
- try {await env.DB.prepare("CREATE TABLE IF NOT EXISTS ad_sales (ad_id INTEGER PRIMARY KEY, sold_at TEXT NOT NULL DEFAULT (datetime('now')))").run();const {results}=await env.DB.prepare("SELECT a.id,a.title,a.price,a.category,a.location,a.description,a.phone,a.photo_url,a.created_at,s.sold_at FROM ads a LEFT JOIN ad_sales s ON s.ad_id=a.id WHERE a.status='approved' AND (s.sold_at IS NULL OR s.sold_at > datetime('now','-7 days')) ORDER BY a.id DESC LIMIT 100").all();return reply({ads:results||[]});}
+ try {await env.DB.prepare("CREATE TABLE IF NOT EXISTS ad_sales (ad_id INTEGER PRIMARY KEY, sold_at TEXT NOT NULL DEFAULT (datetime('now')))").run();const {results}=await env.DB.prepare("SELECT a.id,a.title,a.price,a.category,a.location,a.description,a.phone,COALESCE((SELECT '/api/file/' || m.id FROM ad_media m WHERE m.ad_id=a.id AND m.kind='photo' ORDER BY m.id LIMIT 1),a.photo_url) AS photo_url,a.created_at,s.sold_at FROM ads a LEFT JOIN ad_sales s ON s.ad_id=a.id WHERE a.status='approved' AND (s.sold_at IS NULL OR s.sold_at > datetime('now','-7 days')) ORDER BY a.id DESC LIMIT 100").all();return reply({ads:results||[]});}
  catch {return reply({error:'Database unavailable'},500);}
 }
 export async function onRequestPost({request,env}) {
