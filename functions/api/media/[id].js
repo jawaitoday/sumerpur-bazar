@@ -11,7 +11,7 @@ export async function onRequest({request,env,params}){
  if(request.method==='GET'){
   const ad=await env.DB.prepare("SELECT status FROM ads WHERE id=?").bind(id).first();
   if(!ad||ad.status!=='approved')return json({error:'Not available'},404);
-  const {results}=await env.DB.prepare('SELECT id,kind FROM ad_media WHERE ad_id=? ORDER BY id').bind(id).all();
+  const {results}=await env.DB.prepare('SELECT m.id,m.kind FROM ad_media m JOIN ad_media_screening sc ON sc.media_id=m.id WHERE m.ad_id=? AND m.kind='photo' AND sc.verdict='safe' ORDER BY m.id').bind(id).all();
   return json({media:results||[]});
  }
  if(request.method!=='POST'&&request.method!=='DELETE'&&request.method!=='PATCH')return json({error:'Method not allowed'},405);
