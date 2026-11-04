@@ -10,7 +10,8 @@ async function authorized(request,env){
  return mismatch===0;
 }
 export async function onRequest({request,env}){
- if(!env.DB||!env.SUMERPURBAZAR)return response({error:'DB or ADMIN_TOKEN not configured'},503);
+ if(!env.DB)return response({error:'DB binding missing in this deployment'},503);
+ if(!env.SUMERPURBAZAR)return response({error:'SUMERPURBAZAR secret missing in this deployment'},503);
  if(!(await authorized(request,env)))return response({error:'अनुमति नहीं है। पासवर्ड जाँचें।'},401);
  if(request.method==='GET'){
   try{const {results}=await env.DB.prepare("SELECT id,title,price,category,location,description,phone,status,created_at FROM ads ORDER BY id DESC LIMIT 200").all();return response({ads:results||[]})}catch{return response({error:'डेटाबेस उपलब्ध नहीं है'},500)}
