@@ -1,6 +1,7 @@
 import {getUser} from '../account.js';
 const json=(x,status=200)=>new Response(JSON.stringify(x),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const digest=async t=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)))).map(x=>x.toString(16).padStart(2,'0')).join('');
+async function screenPhoto(env,file){if(!env.AI)return 'review';try{const bytes=[...new Uint8Array(await file.arrayBuffer())];const response=await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct',{messages:[{role:'user',content:[{type:'text',text:'Moderate this marketplace advertisement image. Is it clearly safe for a general audience, with no nudity, sexual content, graphic violence, hate symbols, or illegal goods? Reply with only SAFE or REVIEW. If uncertain reply REVIEW.'},{type:'image',image:bytes}]}],max_tokens:12});return String(response?.response||'').trim().toUpperCase()==='SAFE'?'safe':'review'}catch{return 'review'}}
 export async function onRequest({request,env,params}){
  if(!env.DB)return json({error:'DB binding missing'},503);
  if(!env.MEDIA)return json({error:'Cloudflare R2 MEDIA binding missing'},503);
@@ -29,7 +30,7 @@ export async function onRequest({request,env,params}){
  const kind=isImage?'photo':'video',count=await env.DB.prepare('SELECT COUNT(*) n FROM ad_media WHERE ad_id=? AND kind=?').bind(id,kind).first();
  if(count.n>=(isImage?5:1))return json({error:'Maximum 5 photos and 1 video'},400);
  const ext=({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','video/mp4':'mp4','video/webm':'webm'})[file.type];
- const key='ads/'+id+'/'+crypto.randomUUID()+'.'+ext;
- try{await env.MEDIA.put(key,file.stream(),{httpMetadata:{contentType:file.type}});const result=await env.DB.prepare('INSERT INTO ad_media(ad_id,object_key,kind) VALUES(?,?,?)').bind(id,key,kind).run();return json({ok:true,id:result.meta.last_row_id,kind},201)}
+ const screening=isImage?await screenPhoto(env,file):'review';const key='ads/'+id+'/'+crypto.randomUUID()+'.'+ext;
+ try{await env.MEDIA.put(key,file.stream(),{httpMetadata:{contentType:file.type}});const result=await env.DB.prepare('INSERT INTO ad_media(ad_id,object_key,kind) VALUES(?,?,?)').bind(id,key,kind).run();await env.DB.prepare('CREATE TABLE IF NOT EXISTS ad_media_screening (media_id INTEGER PRIMARY KEY, verdict TEXT NOT NULL)').run();await env.DB.prepare('INSERT INTO ad_media_screening(media_id,verdict) VALUES(?,?)').bind(result.meta.last_row_id,screening).run();return json({ok:true,id:result.meta.last_row_id,kind,screening},201)}
  catch{return json({error:'Upload failed'},500)}
 }
