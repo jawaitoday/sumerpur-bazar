@@ -3,7 +3,7 @@ async function authorized(request,env){
  const supplied=request.headers.get('authorization')||'';
  if(!env.SUMERPURBAZAR||!supplied.startsWith('Bearer '))return false;
  const candidate=supplied.slice(7);
- if(candidate.length<24||candidate.length>512)return false;
+ if(candidate.length<9||candidate.length>512)return false;
  const hash=async s=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)));
  const a=await hash(candidate),b=await hash(env.SUMERPURBAZAR);let mismatch=0;
  for(let i=0;i<a.length;i++)mismatch|=a[i]^b[i];
