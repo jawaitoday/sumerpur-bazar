@@ -1,3 +1,4 @@
+import {getUser} from '../../account.js';
 const json=(x,status=200)=>new Response(JSON.stringify(x),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const digest=async t=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)))).map(x=>x.toString(16).padStart(2,'0')).join('');
 export async function onRequest({request,env,params}){
@@ -14,10 +15,10 @@ export async function onRequest({request,env,params}){
  }
  if(request.method!=='POST')return json({error:'Method not allowed'},405);
  const origin=request.headers.get('origin');if(origin&&new URL(origin).origin!==url.origin)return json({error:'Invalid origin'},403);
- const token=request.headers.get('x-ad-edit-token')||'';
- if(!/^[a-f0-9]{64}$/.test(token))return json({error:'Edit key required'},401);
+ const token=request.headers.get('x-ad-edit-token')||'';const user=await getUser(request,env);const userOwner=user?await env.DB.prepare('SELECT ad_id FROM sb_user_ads WHERE ad_id=? AND user_id=?').bind(id,user.id).first():null;
+ if(!userOwner&&!/^[a-f0-9]{64}$/.test(token))return json({error:'Login required'},401);
  const owner=await env.DB.prepare('SELECT token_hash FROM ad_owners WHERE ad_id=?').bind(id).first();
- if(!owner||owner.token_hash!==await digest(token))return json({error:'Not authorized'},403);
+ if(!userOwner&&(!owner||owner.token_hash!==await digest(token)))return json({error:'Not authorized'},403);
  const form=await request.formData(),file=form.get('file');
  if(!(file instanceof File))return json({error:'Choose a file'},400);
  const isImage=file.type==='image/jpeg'||file.type==='image/webp'||file.type==='image/png';
