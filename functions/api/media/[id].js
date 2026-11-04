@@ -14,13 +14,14 @@ export async function onRequest({request,env,params}){
   const {results}=await env.DB.prepare('SELECT id,kind FROM ad_media WHERE ad_id=? ORDER BY id').bind(id).all();
   return json({media:results||[]});
  }
- if(request.method!=='POST'&&request.method!=='DELETE')return json({error:'Method not allowed'},405);
+ if(request.method!=='POST'&&request.method!=='DELETE'&&request.method!=='PATCH')return json({error:'Method not allowed'},405);
  const origin=request.headers.get('origin');if(origin&&new URL(origin).origin!==url.origin)return json({error:'Invalid origin'},403);
  const token=request.headers.get('x-ad-edit-token')||'';const user=await getUser(request,env);const userOwner=user?await env.DB.prepare('SELECT ad_id FROM sb_user_ads WHERE ad_id=? AND user_id=?').bind(id,user.id).first():null;
  if(!userOwner&&!/^[a-f0-9]{64}$/.test(token))return json({error:'Login required'},401);
  const owner=await env.DB.prepare('SELECT token_hash FROM ad_owners WHERE ad_id=?').bind(id).first();
  if(!userOwner&&(!owner||owner.token_hash!==await digest(token)))return json({error:'Not authorized'},403);
- if(request.method==='DELETE'){const mediaId=Number(url.searchParams.get('media_id'));if(!Number.isSafeInteger(mediaId)||mediaId<1)return json({error:'Invalid media'},400);const media=await env.DB.prepare('SELECT id,object_key FROM ad_media WHERE id=? AND ad_id=?').bind(mediaId,id).first();if(!media)return json({error:'Media not found'},404);await env.MEDIA.delete(media.object_key);await env.DB.prepare('DELETE FROM ad_media WHERE id=? AND ad_id=?').bind(mediaId,id).run();return json({ok:true});}
+ if(request.method==='PATCH'){const ad=await env.DB.prepare('SELECT status FROM ads WHERE id=?').bind(id).first();if(!ad)return json({error:'Ad not found'},404);if(ad.status==='rejected')return json({ok:true,status:'rejected'});await env.DB.prepare('CREATE TABLE IF NOT EXISTS ad_media_screening (media_id INTEGER PRIMARY KEY, verdict TEXT NOT NULL)').run();const check=await env.DB.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN m.kind='photo' AND s.verdict='safe' THEN 0 ELSE 1 END) AS flagged FROM ad_media m LEFT JOIN ad_media_screening s ON s.media_id=m.id WHERE m.ad_id=?").bind(id).first();if(!check?.total||check.flagged)return json({ok:true,status:'pending',reason:'manual_review'});await env.DB.prepare("UPDATE ads SET status='approved' WHERE id=? AND status='pending'").bind(id).run();return json({ok:true,status:'approved'})}
+ if(request.method==='DELETE'){const mediaId=Number(url.searchParams.get('media_id'));if(!Number.isSafeInteger(mediaId)||mediaId<1)return json({error:'Invalid media'},400);const media=await env.DB.prepare('SELECT id,object_key FROM ad_media WHERE id=? AND ad_id=?').bind(mediaId,id).first();if(!media)return json({error:'Media not found'},404);await env.MEDIA.delete(media.object_key);await env.DB.prepare('DELETE FROM ad_media WHERE id=? AND ad_id=?').bind(mediaId,id).run();await env.DB.prepare('DELETE FROM ad_media_screening WHERE media_id=?').bind(mediaId).run();return json({ok:true});}
  const form=await request.formData(),file=form.get('file');
  if(!(file instanceof File))return json({error:'Choose a file'},400);
  const isImage=file.type==='image/jpeg'||file.type==='image/webp'||file.type==='image/png';
