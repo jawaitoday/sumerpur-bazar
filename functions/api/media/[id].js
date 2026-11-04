@@ -1,4 +1,4 @@
-import {getUser} from '../../account.js';
+import {getUser} from '../account.js';
 const json=(x,status=200)=>new Response(JSON.stringify(x),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const digest=async t=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)))).map(x=>x.toString(16).padStart(2,'0')).join('');
 export async function onRequest({request,env,params}){
