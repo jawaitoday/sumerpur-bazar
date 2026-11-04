@@ -1,0 +1,21 @@
+const categories=new Set(['कार','बाइक','मोबाइल','फर्नीचर','इलेक्ट्रॉनिक्स','प्रॉपर्टी','नौकरी','अन्य वस्तुएँ']);
+const locations=new Set(['सुमेरपुर','शिवगंज','आसपास के गाँव']);
+const reply=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+export async function onRequestGet({env}) {
+ if(!env.DB)return reply({error:'DB binding missing'},503);
+ try {const {results}=await env.DB.prepare("SELECT id,title,price,category,location,description,phone,photo_url,created_at FROM ads WHERE status='approved' ORDER BY id DESC LIMIT 100").all();return reply({ads:results||[]});}
+ catch {return reply({error:'Database unavailable'},500);}
+}
+export async function onRequestPost({request,env}) {
+ if(!env.DB)return reply({error:'DB binding missing'},503);
+ const origin=request.headers.get('origin');
+ if(origin&&new URL(origin).hostname!==new URL(request.url).hostname)return reply({error:'Invalid origin'},403);
+ if(!request.headers.get('content-type')?.includes('application/json'))return reply({error:'JSON required'},415);
+ let a;try{a=await request.json()}catch{return reply({error:'Invalid JSON'},400)}
+ if(!a||typeof a!=='object'||Array.isArray(a))return reply({error:'Invalid data'},400);
+ const get=(k,max)=>typeof a[k]==='string'&&a[k].trim().length>0&&a[k].trim().length<=max?a[k].trim():null;
+ const title=get('title',70),description=get('description',500),phone=get('phone',10),category=get('category',40),location=get('location',40),price=Number(a.price);
+ if(!title||!description||!phone||!/^[6-9]\d{9}$/.test(phone)||!categories.has(category)||!locations.has(location)||!Number.isSafeInteger(price)||price<0||price>999999999)return reply({error:'जानकारी सही भरें'},400);
+ try {await env.DB.prepare("INSERT INTO ads(title,price,category,location,description,phone,status) VALUES(?,?,?,?,?,?,'pending')").bind(title,price,category,location,description,phone).run();return reply({ok:true,status:'pending'},201);}
+ catch{return reply({error:'Save failed'},500)}
+}
