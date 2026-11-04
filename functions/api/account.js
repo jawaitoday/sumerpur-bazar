@@ -60,7 +60,7 @@ export async function onRequestPost({request,env}){
  if(b.action==='profile'){
  const u=await getUser(request,env);if(!u)return out({error:'लॉगिन करें'},401);
  const name=String(b.name||'').trim().slice(0,80),username=String(b.username||'').trim(),address=String(b.address||'').trim().slice(0,180),city=String(b.city||'').trim().slice(0,80),pincode=String(b.pincode||'').trim(),shop=String(b.shop_name||'').trim().slice(0,100),dealer=b.dealer?1:0,photo=String(b.photo||'');
- if(name.length<2||(username&&!/^[a-zA-Z0-9_]{3,15}$/.test(username))||(pincode&&!/^\\d{6}$/.test(pincode))||(photo&&(!/^data:image\\/(jpeg|png|webp);base64,/.test(photo)||photo.length>100000)))return out({error:'प्रोफाइल जानकारी सही भरें। फोटो 70 KB से छोटी रखें।'},400);
+ if(name.length<2||(username&&!/^[a-zA-Z0-9_]{3,15}$/.test(username))||(pincode&&!/^[0-9]{6}$/.test(pincode))||(photo&&(!['data:image/jpeg;base64,','data:image/png;base64,','data:image/webp;base64,'].some(prefix=>photo.startsWith(prefix))||photo.length>100000)))return out({error:'प्रोफाइल जानकारी सही भरें। फोटो 70 KB से छोटी रखें।'},400);
  const taken=username?await env.DB.prepare('SELECT id FROM sb_users WHERE username=? AND id<>?').bind(username,u.id).first():null;if(taken)return out({error:'यूजरनेम पहले से लिया गया है'},409);
  await env.DB.prepare('UPDATE sb_users SET name=?,username=?,address=?,city=?,pincode=?,dealer=?,shop_name=?,photo=? WHERE id=?').bind(name,username||null,address,city,pincode,dealer,shop,photo||u.photo||null,u.id).run();return out({ok:true,user:await getUser(request,env)});
  }
